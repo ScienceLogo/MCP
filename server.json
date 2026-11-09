@@ -12,6 +12,37 @@
     {
       "registryType": "oci",
       "identifier": "ghcr.io/sciencelogo/sciencelogo-mcp:0.2.0",
+      "runtimeHint": "docker",
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--mount",
+          "value": "type=bind,src={folder},dst={folder}",
+          "description": "Shares the agent's working folder with the server, at the same path.",
+          "isRequired": true,
+          "variables": {
+            "folder": {
+              "description": "The folder the agent works in. The server reads and writes ScienceLogo files only there.",
+              "format": "filepath",
+              "isRequired": true
+            }
+          }
+        },
+        {
+          "type": "named",
+          "name": "--workdir",
+          "value": "{folder}",
+          "description": "Starts the server in that folder.",
+          "isRequired": true,
+          "variables": {
+            "folder": {
+              "description": "The folder the agent works in. The server reads and writes ScienceLogo files only there.",
+              "format": "filepath",
+              "isRequired": true
+            }
+          }
+        }
+      ],
       "transport": {
         "type": "stdio"
       }

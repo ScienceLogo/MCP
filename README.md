@@ -35,42 +35,36 @@ New stages get their own file under `stages/`, and the advice returned with
 each write helps keep the workflow readable from the broad description down
 to the details.
 
-## Use it
+## MCP access
 
-The server runs as a container image with Racket and ScienceLogo inside. It
-works on the ScienceLogo files of the folder it is started in, so that folder
-is mounted into the container at the same path:
+The server is published with this identity:
 
-```
-docker run -i --rm --user "$(id -u):$(id -g)" -v "$PWD:$PWD" -w "$PWD" \
-  ghcr.io/sciencelogo/sciencelogo-mcp:0.2.0
-```
+- registry name: `io.github.ScienceLogo/sciencelogo-mcp`
+- OCI image: `ghcr.io/sciencelogo/sciencelogo-mcp:<release-version>`, with
+  Racket and ScienceLogo inside
+- transport: `stdio`
+- official registry: `https://registry.modelcontextprotocol.io/`
 
-`--user` keeps the files it writes owned by you. Podman works the same way.
+It is discoverable in the official MCP Registry under
+`io.github.ScienceLogo/sciencelogo-mcp`:
 
-**Claude Code**, from the project folder:
+- `https://registry.modelcontextprotocol.io/?q=sciencelogo`
 
-```
-claude mcp add sciencelogo -- docker run -i --rm --user "$(id -u):$(id -g)" \
-  -v "$PWD:$PWD" -w "$PWD" ghcr.io/sciencelogo/sciencelogo-mcp:0.2.0
-```
+Local client configuration, with the package installed and Racket with the
+`sciencelogo` package on the `PATH` (or named by `SCIENCELOGO_MCP_RACKET`):
 
-**Codex**, in `~/.codex/config.toml`, with the project folder written out:
-
-```toml
-[mcp_servers.sciencelogo]
-command = "docker"
-# --user takes your user and group ids, from `id -u` and `id -g`.
-args = ["run", "-i", "--rm", "--user", "1000:1000",
-        "-v", "/path/to/project:/path/to/project", "-w", "/path/to/project",
-        "ghcr.io/sciencelogo/sciencelogo-mcp:0.2.0"]
+```json
+{
+  "mcpServers": {
+    "sciencelogo": {
+      "command": "sciencelogo-mcp"
+    }
+  }
+}
 ```
 
-**Goose** and other clients: add a stdio server that runs the `docker`
-command above.
-
-The server is also listed in the MCP Registry as
-`io.github.ScienceLogo/sciencelogo-mcp`.
+The registry metadata is declared in [`server.json`](server.json). The
+publish workflow fills in the release version and image tag when publishing.
 
 ## Versions
 
