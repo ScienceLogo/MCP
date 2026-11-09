@@ -12,7 +12,9 @@ def check(helper, name):
 
 
 def test_valid_workflow_split_over_files(helper):
-    assert check(helper, "valid") == {"status": "valid"}
+    result = check(helper, "valid")
+    assert result["status"] == "valid"
+    assert "No structural issues found." in result["assessment"]["report"]
 
 
 def test_read_error_reports_message_and_location(helper):
@@ -44,4 +46,4 @@ def test_helper_restarts_after_a_crash(helper):
     check(helper, "valid")
     helper._process.kill()
     helper._process.wait()
-    assert check(helper, "valid") == {"status": "valid"}
+    assert check(helper, "valid")["status"] == "valid"

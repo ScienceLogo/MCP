@@ -27,7 +27,7 @@ version = { attr = "sciencelogo_mcp.__version__" }
 where = ["src"]
 
 [tool.setuptools.package-data]
-sciencelogo_mcp = ["racket/*.rkt"]
+sciencelogo_mcp = ["racket/*.rkt", "guide.md"]
 
 [tool.ruff]
 line-length = 100

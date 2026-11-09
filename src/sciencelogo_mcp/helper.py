@@ -12,10 +12,12 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
+from mcp.server.mcpserver.exceptions import ToolError
+
 HELPER = Path(__file__).parent / "racket" / "helper.rkt"
 
 
-class HelperError(RuntimeError):
+class HelperError(ToolError):
     pass
 
 
@@ -95,7 +97,9 @@ class RacketHelper:
                 line = self._replies.get(timeout=self._timeout)
             except queue.Empty:
                 self._stop()
-                raise HelperError(f"the Racket helper did not answer within {self._timeout} s")
+                raise HelperError(
+                    f"the Racket helper did not answer within {self._timeout} s"
+                ) from None
             except BrokenPipeError:
                 line = None
             if line is None:
