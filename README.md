@@ -10,25 +10,54 @@ The ScienceLogo reference reader checks every write before it is saved. A
 write the reader rejects changes nothing, and the agent gets the reader's
 message with the file, line and column.
 
-## What it does
+## Tools
 
-- **Reading and checking:** `check` runs the reader, the structural
-  assessment and readability advice; `outline` lists every item;
-  `read_workflow` returns a workflow in verbose or compact syntax, whole or
-  one item; `language_reference` returns the manual, the grammar, the
-  changelog and the examples of the installed release.
-- **Writing:** `create_workflow` and `create_library` start a project.
-  One tool writes each construct of the language: the workflow title and
-  summary, performers, resources, propositions, record interfaces,
-  procedures, stages, paired stages, phases, requirements, mappings, library
-  imports and includes. `write_fragment` writes any other ScienceLogo text,
-  and `remove_item` and `move_item` change the structure.
-- **Libraries and syntax:** `describe_library` shows what a library
-  provides before it is imported; `convert_syntax` rewrites files in verbose
-  or compact syntax, keeping comments.
-- **Teaching:** no model knows ScienceLogo, so the server offers a guide for
-  agents (`sciencelogo://guide`) and the manual pages
-  (`sciencelogo://docs/{topic}`) as resources.
+Items are named `kind:name`, for example `stage:Measure`. Every tool that
+writes is checked by the reader, and a construct tool replaces an item of the
+same kind and name.
+
+**Reading and checking**
+
+| Tool | What it does |
+| --- | --- |
+| `check` | Runs the reader, the structural assessment and readability advice. |
+| `outline` | Lists every item, with the stages, phases, procedures, performers and imports. |
+| `read_workflow` | Returns a workflow in verbose or compact syntax, whole or one item; a file the current reader rejects is returned as stored. |
+| `language_reference` | Returns a manual page, the grammar, the changelog or an example of the installed release. |
+| `describe_library` | Shows what a library provides, its procedures and record interfaces, before it is imported. |
+
+**Starting and changing the structure**
+
+| Tool | What it does |
+| --- | --- |
+| `create_workflow` | Starts a workflow with its title and summary. |
+| `create_library` | Starts a library project. |
+| `write_fragment` | Writes any ScienceLogo text, at the end of a file or next to or in place of an item. |
+| `remove_item` | Removes an item. |
+| `move_item` | Moves an item to another file, keeping the method's order. |
+| `convert_syntax` | Rewrites files in verbose or compact syntax, keeping comments. |
+
+**Writing each construct**
+
+| Tool | What it writes |
+| --- | --- |
+| `set_workflow` | The workflow's title and summary. |
+| `declare_performer` | Who or what carries out work. |
+| `declare_resource` | A resource the method uses, such as an instrument. |
+| `declare_proposition` | A hypothesis, assumption or conclusion. |
+| `declare_interface` | A record interface: the fields a record must or may have. |
+| `declare_procedure` | A procedure, with its result's fields and units and its uncertainty. |
+| `add_stage` | A simple stage, in its own file under `stages/` by default. |
+| `add_paired_stage` | A stage with entry and exit state; the exit state is derived from the calls. |
+| `add_phase` | A named group of stages with its own summary. |
+| `add_requirement` | A required call or stage order. |
+| `add_mapping` | A statement that a record implements an interface. |
+| `import_library` | A library import pinned to a tag or commit. |
+| `add_include` | An include of an existing file. |
+
+**Resources:** a guide for agents (`sciencelogo://guide`) and the manual
+pages (`sciencelogo://docs/{topic}`). No model knows ScienceLogo, so the
+server teaches it.
 
 Steps done outside ScienceLogo are described as a method, never by file
 paths or code: `declare_procedure` asks for what the step does, its inputs,
