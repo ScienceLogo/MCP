@@ -2,12 +2,17 @@ cff-version: 1.2.0
 message: "v0.2.0 - First release: writes and checks ScienceLogo 0.2 workflows and libraries for AI agents."
 title: ScienceLogo MCP Server
 type: software
+doi: 10.5281/zenodo.24085876
 authors:
   - given-names: Riccardo
     family-names: Boero
     email: ribo@nilu.no
     orcid: 'https://orcid.org/0000-0002-7468-9096'
     affiliation: NILU
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.24085876
+    description: This DOI represents all software versions.
 repository-code: 'https://github.com/ScienceLogo/MCP'
 abstract: >-
   Model Context Protocol server that lets AI agents write and maintain
