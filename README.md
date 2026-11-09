@@ -23,6 +23,9 @@ message with the file, line and column.
   procedures, stages, paired stages, phases, requirements, mappings, library
   imports and includes. `write_fragment` writes any other ScienceLogo text,
   and `remove_item` and `move_item` change the structure.
+- **Libraries and syntax:** `describe_library` shows what a library
+  provides before it is imported; `convert_syntax` rewrites files in verbose
+  or compact syntax, keeping comments.
 - **Teaching:** no model knows ScienceLogo, so the server offers a guide for
   agents (`sciencelogo://guide`) and the manual pages
   (`sciencelogo://docs/{topic}`) as resources.

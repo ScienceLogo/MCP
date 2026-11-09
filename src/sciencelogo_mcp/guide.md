@@ -79,6 +79,9 @@ blocks a write.
    stage or an interface with conditions.
 5. `remove_item` and `move_item` change the structure. Items are named
    `kind:name`, for example `stage:Measure` or `procedure:calculate-period`.
+6. `describe_library` shows what a library provides before you import it;
+   reuse its procedures instead of writing them again.
+7. `convert_syntax` rewrites files in verbose or compact syntax.
 
 ## Older workflows
 

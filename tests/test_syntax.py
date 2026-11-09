@@ -74,3 +74,15 @@ def test_reader_positions_count_crlf_once():
     content = "#lang sciencelogo\r\nperformer a []\r\nperformer b []\n"
     assert content[offset(content, 19) :].startswith("performer a")
     assert content[offset(content, 34) :].startswith("performer b")
+
+
+def test_paths_stay_inside_the_shared_folders(tmp_path):
+    from sciencelogo_mcp.workspace import Workspace, WriteError
+
+    first, second = tmp_path / "first", tmp_path / "second"
+    workspace = Workspace(helper=None, root=first)
+    workspace.roots = [first, second]
+    assert workspace.resolve("a.rkt") == first / "a.rkt"
+    assert workspace.resolve(str(second / "b.rkt")) == second / "b.rkt"
+    with pytest.raises(WriteError):
+        workspace.resolve(str(tmp_path / "third" / "c.rkt"))

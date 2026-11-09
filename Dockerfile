@@ -15,6 +15,11 @@ LABEL io.modelcontextprotocol.server.name="io.github.ScienceLogo/sciencelogo-mcp
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
+# The ScienceLogo reader fetches imported libraries with Git.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
 # Racket and the ScienceLogo language release, each checked against its pinned checksum.
 RUN python -c "import sys, urllib.request; urllib.request.urlretrieve(sys.argv[1], '/tmp/racket.tgz')" \
       "https://mirror.racket-lang.org/installers/${RACKET_VERSION}/racket-minimal-${RACKET_VERSION}-x86_64-linux-buster-cs.tgz" \

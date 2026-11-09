@@ -22,6 +22,10 @@ number counts the server's own releases for that language version.
   `declare_interface`, `declare_procedure`, `add_stage`, `add_paired_stage`,
   `add_phase`, `add_requirement`, `add_mapping`, `import_library` and
   `add_include`.
+- `describe_library` shows what a library provides, its procedures and
+  record interfaces, before it is imported.
+- `convert_syntax` rewrites a workflow or library in verbose or compact
+  syntax with the reference translator, keeping comments.
 - A guide for agents and the manual pages as MCP resources.
 - A container image with Racket 9.3 and ScienceLogo 0.2, published to the
   GitHub Container Registry and the MCP Registry for each version tag.

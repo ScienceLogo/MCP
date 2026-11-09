@@ -9,8 +9,11 @@ from __future__ import annotations
 import re
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import unquote, urlparse
 
+import anyio
 from mcp.server import MCPServer
+from mcp.server.mcpserver import Context
 from mcp.server.mcpserver.exceptions import ResourceError
 
 from sciencelogo_mcp import __version__, syntax
@@ -47,6 +50,23 @@ def create_server(helper: RacketHelper | None = None, root: Path | None = None) 
     workspace = Workspace(helper, root)
     docs = LanguageDocs(helper)
     server = MCPServer(name="sciencelogo", version=__version__, instructions=INSTRUCTIONS)
+
+    def share_client_folders(ctx: Context) -> None:
+        """Work in the folders the client shares with the server, when it shares
+        any; otherwise in the folder the server was started in."""
+        try:
+            capabilities = ctx.client_capabilities
+            if capabilities is None or capabilities.roots is None:
+                return
+            listed = anyio.from_thread.run(ctx.session.list_roots)
+        except Exception:
+            return
+        folders = [
+            Path(unquote(urlparse(str(root.uri)).path)).resolve()
+            for root in listed.roots
+            if str(root.uri).startswith("file://")
+        ]
+        workspace.roots = folders or list(workspace.default_roots)
 
     def declare(
         entry: str,
@@ -85,13 +105,14 @@ def create_server(helper: RacketHelper | None = None, root: Path | None = None) 
     # --- reading and checking ----------------------------------------------------
 
     @server.tool()
-    def check(entry: str) -> dict[str, Any]:
+    def check(entry: str, *, ctx: Context) -> dict[str, Any]:
         """Check a workflow or library with the ScienceLogo reader, without running it.
 
         `entry` is the main file; the files it includes are read too. Returns
         status "valid" with the structural assessment and readability advice,
         or status "invalid" with the reader's message, file, line and column.
         """
+        share_client_folders(ctx)
         path = workspace.entry_path(entry)
         result = workspace.check(path)
         if result["status"] == "valid" and workspace.kind_of(path) == "workflow":
@@ -101,10 +122,11 @@ def create_server(helper: RacketHelper | None = None, root: Path | None = None) 
         return result
 
     @server.tool()
-    def outline(entry: str) -> dict[str, Any]:
+    def outline(entry: str, *, ctx: Context) -> dict[str, Any]:
         """The structure of a valid workflow or library: its title and summary,
         every item with its kind, name and file, and its stages, phases,
         procedures, performers and imports."""
+        share_client_folders(ctx)
         path = workspace.entry_path(entry)
         status = workspace.check(path)
         if status["status"] != "valid":
@@ -150,6 +172,8 @@ def create_server(helper: RacketHelper | None = None, root: Path | None = None) 
         entry: str,
         syntax_form: Literal["verbose", "compact"] = "verbose",
         item: str | None = None,
+        *,
+        ctx: Context,
     ) -> dict[str, Any]:
         """The text of a workflow or library, in verbose (default) or compact syntax.
 
@@ -157,6 +181,7 @@ def create_server(helper: RacketHelper | None = None, root: Path | None = None) 
         rejects is returned as stored, with the reader's error, so it can be
         rewritten in the current release.
         """
+        share_client_folders(ctx)
         path = workspace.entry_path(entry)
         root = path.parent
         status = workspace.check(path)
@@ -197,13 +222,14 @@ def create_server(helper: RacketHelper | None = None, root: Path | None = None) 
         }
 
     @server.tool()
-    def language_reference(topic: str | None = None) -> dict[str, Any]:
+    def language_reference(topic: str | None = None, *, ctx: Context) -> dict[str, Any]:
         """The ScienceLogo documentation of the installed release.
 
         With no topic, the list of topics and examples. A topic is a manual
         page (such as "stages" or "procedures"), "grammar-ebnf", "changelog",
         or "example:<name>" for an example file.
         """
+        share_client_folders(ctx)
         if not topic:
             return {
                 "language_version": docs.version,
@@ -220,24 +246,30 @@ def create_server(helper: RacketHelper | None = None, root: Path | None = None) 
     # --- free writing ------------------------------------------------------------
 
     @server.tool()
-    def create_workflow(file: str, title: str, about: str | None = None) -> dict[str, Any]:
+    def create_workflow(
+        file: str, title: str, about: str | None = None, *, ctx: Context
+    ) -> dict[str, Any]:
         """Start a new workflow in a new main file, with its title and summary."""
-        path = (workspace.root / file).resolve()
+        share_client_folders(ctx)
+        path = workspace.resolve(file)
         if path.exists():
             raise WriteError(f"{file} already exists")
-        if not path.is_relative_to(workspace.root) or path.suffix != ".rkt":
-            raise WriteError("the main file is a .rkt file inside the working folder")
+        if path.suffix != ".rkt":
+            raise WriteError("ScienceLogo files end in .rkt")
         content = f"{HEADER}\n{syntax.workflow_header(title, about)}\n"
         return workspace.commit(path, {path: content})
 
     @server.tool()
-    def create_library(file: str, name: str, language: str | None = None) -> dict[str, Any]:
+    def create_library(
+        file: str, name: str, language: str | None = None, *, ctx: Context
+    ) -> dict[str, Any]:
         """Start a library project in a new main file (usually library.rkt).
 
         A library holds procedures, record interfaces, includes and imports.
         `language` is the language version it is written for (default: the
         installed release).
         """
+        share_client_folders(ctx)
         return workspace.create_library(file, name, language or docs.version)
 
     @server.tool()
@@ -249,6 +281,8 @@ def create_server(helper: RacketHelper | None = None, root: Path | None = None) 
         before: str | None = None,
         replaces: str | None = None,
         include_after: str | None = None,
+        *,
+        ctx: Context,
     ) -> dict[str, Any]:
         """Write any ScienceLogo text, checked by the reader before it is saved.
 
@@ -258,6 +292,7 @@ def create_server(helper: RacketHelper | None = None, root: Path | None = None) 
         header and an `include` line in the main file, after `include_after` or
         after the last include.
         """
+        share_client_folders(ctx)
         return workspace.insert(
             workspace.entry_path(entry),
             text,
@@ -269,18 +304,20 @@ def create_server(helper: RacketHelper | None = None, root: Path | None = None) 
         )
 
     @server.tool()
-    def remove_item(entry: str, item: str) -> dict[str, Any]:
+    def remove_item(entry: str, item: str, *, ctx: Context) -> dict[str, Any]:
         """Remove an item (`kind:name`) with the comments just before it."""
+        share_client_folders(ctx)
         kind, name = item_ref(item)
         return workspace.remove(workspace.entry_path(entry), kind, name)
 
     @server.tool()
-    def move_item(entry: str, item: str, to_file: str) -> dict[str, Any]:
+    def move_item(entry: str, item: str, to_file: str, *, ctx: Context) -> dict[str, Any]:
         """Move an item (`kind:name`) with its comments to another file.
 
         A new file is created and included where the item was, so the method
         keeps its order.
         """
+        share_client_folders(ctx)
         kind, name = item_ref(item)
         return workspace.move(workspace.entry_path(entry), kind, name, to_file)
 
@@ -288,26 +325,29 @@ def create_server(helper: RacketHelper | None = None, root: Path | None = None) 
 
     @server.tool()
     def set_workflow(
-        entry: str, title: str | None = None, about: str | None = None
+        entry: str, title: str | None = None, about: str | None = None, *, ctx: Context
     ) -> dict[str, Any]:
         """Set the workflow's title and its summary (about); either can be left as it is."""
+        share_client_folders(ctx)
         return workspace.set_header(workspace.entry_path(entry), title, about)
 
     @server.tool()
     def declare_performer(
-        entry: str, name: str, fields: dict[str, Any], file: str | None = None
+        entry: str, name: str, fields: dict[str, Any], file: str | None = None, *, ctx: Context
     ) -> dict[str, Any]:
         """Declare who or what carries out work, for example
         fields {"kind": "human", "role": "scientist"}. Values are JSON; null is
         unknown; {"expr": "..."} is a ScienceLogo expression."""
+        share_client_folders(ctx)
         return declare(entry, "performer", name, syntax.performer(name, fields), file)
 
     @server.tool()
     def declare_resource(
-        entry: str, name: str, fields: dict[str, Any], file: str | None = None
+        entry: str, name: str, fields: dict[str, Any], file: str | None = None, *, ctx: Context
     ) -> dict[str, Any]:
         """Declare a resource the method uses, such as an instrument or a data
         source, with its fields (values as in declare_performer)."""
+        share_client_folders(ctx)
         return declare(entry, "resource", name, syntax.resource(name, fields), file)
 
     @server.tool()
@@ -318,10 +358,13 @@ def create_server(helper: RacketHelper | None = None, root: Path | None = None) 
         statement: str,
         children: str | None = None,
         file: str | None = None,
+        *,
+        ctx: Context,
     ) -> dict[str, Any]:
         """Declare a hypothesis, assumption or conclusion. `children` is optional
         ScienceLogo text for nested propositions, such as
         `hypotheses = [h1 = [text = "..."]]`."""
+        share_client_folders(ctx)
         text = syntax.proposition(type, name, statement, children)
         return declare(entry, "proposition", name, text, file)
 
@@ -334,6 +377,8 @@ def create_server(helper: RacketHelper | None = None, root: Path | None = None) 
         version: str | None = None,
         body: str | None = None,
         file: str | None = None,
+        *,
+        ctx: Context,
     ) -> dict[str, Any]:
         """Declare a record interface: the fields a record must or may have.
 
@@ -342,6 +387,7 @@ def create_server(helper: RacketHelper | None = None, root: Path | None = None) 
         (default true). `body` is optional ScienceLogo text for conditions and
         other interface entries.
         """
+        share_client_folders(ctx)
         text = syntax.interface(name, fields, extends, version, body)
         return declare(entry, "interface", name, text, file)
 
@@ -355,6 +401,8 @@ def create_server(helper: RacketHelper | None = None, root: Path | None = None) 
         uncertainty: list[dict[str, Any]] | None = None,
         body: str | None = None,
         file: str | None = None,
+        *,
+        ctx: Context,
     ) -> dict[str, Any]:
         """Declare a procedure. For a step done outside ScienceLogo, describe it as
         a method, never by file paths or code: `about` says what it does,
@@ -365,6 +413,7 @@ def create_server(helper: RacketHelper | None = None, root: Path | None = None) 
         record. `body` is ScienceLogo commands, when the work is written in
         ScienceLogo itself.
         """
+        share_client_folders(ctx)
         text = syntax.procedure(name, inputs, about, body, result, uncertainty)
         interface_name = syntax.result_interface_name(name)
         return declare(
@@ -396,10 +445,13 @@ def create_server(helper: RacketHelper | None = None, root: Path | None = None) 
         file: str | None = None,
         after: str | None = None,
         before: str | None = None,
+        *,
+        ctx: Context,
     ) -> dict[str, Any]:
         """Add or replace a simple stage: a named section of the method with its
         commands (ScienceLogo text). A new stage gets its own file under stages/
         unless `file`, `after` or `before` place it."""
+        share_client_folders(ctx)
         text = syntax.stage(name, about, commands)
         target = stage_placement(entry, name, file, after, before)
         return declare(entry, "stage", name, text, target, after, before)
@@ -417,6 +469,8 @@ def create_server(helper: RacketHelper | None = None, root: Path | None = None) 
         file: str | None = None,
         after: str | None = None,
         before: str | None = None,
+        *,
+        ctx: Context,
     ) -> dict[str, Any]:
         """Add or replace a paired stage, which states what is known when it
         starts and ends.
@@ -427,6 +481,7 @@ def create_server(helper: RacketHelper | None = None, root: Path | None = None) 
         location). The exit state is derived from the entry state plus every
         `into` location unless `exit_state` is given.
         """
+        share_client_folders(ctx)
         text = syntax.paired_stage(
             name, performer, entry_state, calls or [], about, commands, exit_state
         )
@@ -435,10 +490,17 @@ def create_server(helper: RacketHelper | None = None, root: Path | None = None) 
 
     @server.tool()
     def add_phase(
-        entry: str, name: str, members: list[str], about: str | None = None, file: str | None = None
+        entry: str,
+        name: str,
+        members: list[str],
+        about: str | None = None,
+        file: str | None = None,
+        *,
+        ctx: Context,
     ) -> dict[str, Any]:
         """Add or replace a phase: a named group of workflow-level stages or other
         phases, in method order, with its own summary."""
+        share_client_folders(ctx)
         return declare(entry, "phase", name, syntax.phase(name, about, members), file)
 
     @server.tool()
@@ -447,9 +509,12 @@ def create_server(helper: RacketHelper | None = None, root: Path | None = None) 
         kind: Literal["call", "stage_order"],
         targets: list[str],
         file: str | None = None,
+        *,
+        ctx: Context,
     ) -> dict[str, Any]:
         """Require that the method calls a procedure (`call`, one target) or runs
         stages in order (`stage_order`, two or more stages)."""
+        share_client_folders(ctx)
         text = syntax.requirement(kind, targets)
         return declare(entry, "requirement", " ".join(targets), text, file)
 
@@ -460,8 +525,11 @@ def create_server(helper: RacketHelper | None = None, root: Path | None = None) 
         implements: str,
         file: str | None = None,
         after: str | None = None,
+        *,
+        ctx: Context,
     ) -> dict[str, Any]:
         """State that a record (`target`) implements a record interface."""
+        share_client_folders(ctx)
         return workspace.insert(
             workspace.entry_path(entry),
             syntax.mapping(target, implements),
@@ -470,9 +538,13 @@ def create_server(helper: RacketHelper | None = None, root: Path | None = None) 
         )
 
     @server.tool()
-    def import_library(entry: str, url: str, version: str, alias: str) -> dict[str, Any]:
+    def import_library(
+        entry: str, url: str, version: str, alias: str, *, ctx: Context
+    ) -> dict[str, Any]:
         """Import a library pinned to a Git tag or commit, under an alias. The
-        reader fetches it with Git when it checks the workflow."""
+        reader fetches it with Git when it checks the workflow. `describe_library`
+        shows what a library provides."""
+        share_client_folders(ctx)
         path = workspace.entry_path(entry)
         line = syntax.import_line(url, version, alias)
         existing = workspace.find(path, "import", alias)
@@ -484,9 +556,31 @@ def create_server(helper: RacketHelper | None = None, root: Path | None = None) 
         return workspace.commit(path, {path: workspace.add_after_preamble(content, line)})
 
     @server.tool()
-    def add_include(entry: str, path: str, after: str | None = None) -> dict[str, Any]:
+    def describe_library(url: str, version: str, *, ctx: Context) -> dict[str, Any]:
+        """What a library provides, before importing it: its name, the language
+        version it is written for, and its procedures (inputs and summary) and
+        record interfaces (fields). The reader fetches it with Git, pinned to
+        `version` (a tag or commit)."""
+        share_client_folders(ctx)
+        return helper.request("library", url=url, version=version)
+
+    @server.tool()
+    def convert_syntax(
+        entry: str, to: Literal["verbose", "compact"], file: str | None = None, *, ctx: Context
+    ) -> dict[str, Any]:
+        """Rewrite the files of a workflow or library in verbose or compact
+        syntax with the reference translator, keeping comments. With `file`,
+        only that file."""
+        share_client_folders(ctx)
+        return workspace.convert(workspace.entry_path(entry), to, file)
+
+    @server.tool()
+    def add_include(
+        entry: str, path: str, after: str | None = None, *, ctx: Context
+    ) -> dict[str, Any]:
         """Include an existing file (relative to the main file), after the item
         `after` or after the last include."""
+        share_client_folders(ctx)
         main = workspace.entry_path(entry)
         target = workspace.target_path(main, path)
         if not target.is_file():

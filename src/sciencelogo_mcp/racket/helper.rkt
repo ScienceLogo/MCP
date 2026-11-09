@@ -12,6 +12,7 @@
 ;;   structure  the items of a valid workflow, where each starts and ends, and
 ;;              a summary of its method
 ;;   translate  the verbose or compact text of a file, or of one span of it
+;;   library    what a library provides: its procedures and record interfaces
 ;;   package    where the installed language package is, and its version
 
 (require json
@@ -27,6 +28,7 @@
                   parse-sciencelogo-tree-file
                   form-end
                   language-version
+                  node->datum
                   node-kind
                   node-value
                   node-at
@@ -37,7 +39,7 @@
                   token-position
                   token-source))
 
-(provide check structure translate)
+(provide check structure translate library)
 
 (define (text v)
   (if v (format "~a" v) 'null))
@@ -216,6 +218,47 @@
                        (string-trim (substring all (first hits) (add1 (last hits)))
                                     #:left? #f)))]))
 
+;; --- library ---------------------------------------------------------------
+
+;; library : string string -> jsexpr
+;; Reads a library through a workflow that only imports it, so the reader
+;; fetches and checks it exactly as it would for a real import.
+(define (library url version)
+  (define dir (make-temporary-directory "sciencelogo-library-~a"))
+  (dynamic-wind
+   void
+   (lambda ()
+     (define entry (path->string (build-path dir "workflow.rkt")))
+     (call-with-output-file entry
+       (lambda (out)
+         (fprintf out "#lang sciencelogo\nimport ~s at ~s as described\n" url version)))
+     (define model (read-workflow-model entry))
+     (define tree (parse-sciencelogo-tree-file entry))
+     (define (local-name name)
+       (define s (format "~a" name))
+       (and (string-prefix? s "described.") (substring s 10)))
+     (define import (car (workflow-model-imports model)))
+     (hasheq
+      'name (text (import-model-library-name import))
+      'language (text (import-model-language import))
+      'version (text (import-model-requested-revision import))
+      'commit (text (import-model-commit import))
+      'procedures
+      (for/list ([p (workflow-model-procedures model)]
+                 #:when (local-name (procedure-model-name p)))
+        (hasheq 'name (local-name (procedure-model-name p))
+                'inputs (map input-name (procedure-model-inputs p))
+                'about (description (procedure-model-description p))))
+      'interfaces
+      (for/list ([form (node-children tree)]
+                 #:when (and (eq? (node-kind form) 'interface)
+                             (local-name (node-value form))))
+        (hasheq 'name (local-name (node-value form))
+                'fields (for/list ([entry (caddr (node->datum form))]
+                                   #:when (and (pair? entry) (eq? (car entry) 'interface-field)))
+                          (format "~a" (cadr entry)))))))
+   (lambda () (delete-directory/files dir))))
+
 ;; --- protocol ----------------------------------------------------------------
 
 (define (package)
@@ -243,6 +286,7 @@
           [(equal? op "check") (check (arg 'entry) (arg 'kind "workflow"))]
           [(equal? op "structure") (structure (arg 'entry) (arg 'kind "workflow"))]
           [(equal? op "translate") (translate (arg 'file) (arg 'to "verbose") (arg 'start) (arg 'end))]
+          [(equal? op "library") (library (arg 'url) (arg 'version))]
           [(equal? op "package") (package)]
           [else (error 'helper "unknown operation: ~a" op)])))
     (reply id 'result result)))

@@ -202,3 +202,63 @@ def test_language_reference(call):
     listing = call("language_reference")
     assert "stages" in listing["topics"] and "changelog" in listing["topics"]
     assert "phase" in call("language_reference", topic="grammar-ebnf")["text"]
+
+
+def make_library(folder):
+    """A library in a local Git repository, tagged v1.0.0; returns its URL."""
+    import subprocess
+
+    (folder / "parts").mkdir(parents=True)
+    (folder / "library.rkt").write_text(
+        "#lang sciencelogo\n"
+        'library timing language "0.2" [\n'
+        '  include "parts/extra.rkt"\n'
+        '  interface Timing [must [duration unit = "seconds"]]\n'
+        '  to time-swings :count about "Time a number of swings." [\n'
+        "    output Timing.[duration = unknown]\n"
+        "  ]\n"
+        "]\n",
+        encoding="utf-8",
+    )
+    (folder / "parts" / "extra.rkt").write_text(
+        '#lang sciencelogo\nto helper-proc about "Help." [output 1]\n', encoding="utf-8"
+    )
+
+    def git(*args):
+        subprocess.run(["git", "-C", str(folder), *args], check=True, capture_output=True)
+
+    git("init", "--initial-branch=main")
+    git("add", ".")
+    git("-c", "user.name=Tests", "-c", "user.email=tests@example.invalid", "commit", "-m", "lib")
+    git("tag", "v1.0.0")
+    return f"file://{folder}"
+
+
+def test_describe_and_import_a_library(pendulum, tmp_path_factory):
+    url = make_library(tmp_path_factory.mktemp("timing"))
+    library = pendulum("describe_library", url=url, version="v1.0.0")
+    assert library["name"] == "timing" and library["language"] == "0.2"
+    assert {"name": "time-swings", "inputs": ["count"], "about": "Time a number of swings."} in (
+        library["procedures"]
+    )
+    assert library["interfaces"] == [{"name": "Timing", "fields": ["duration", "unit"]}]
+
+    assert pendulum("import_library", entry=ENTRY, url=url, version="v1.0.0", alias="timing")[
+        "saved"
+    ]
+    lines = text(pendulum, "workflow.rkt").splitlines()
+    assert lines[3] == f'import "{url}" at "v1.0.0" as timing'
+    assert pendulum("outline", entry=ENTRY)["imports"][0]["alias"] == "timing"
+
+
+def test_convert_syntax(pendulum):
+    pendulum("add_stage", entry=ENTRY, name="Report", about="Report.", commands="x = 2")
+    assert pendulum("convert_syntax", entry=ENTRY, to="verbose")["saved"]
+    assert "set x to 2" in text(pendulum, "stages/01-report.rkt")
+    assert pendulum("convert_syntax", entry=ENTRY, to="compact")["saved"]
+    assert "x = 2" in text(pendulum, "stages/01-report.rkt")
+
+
+def test_files_outside_the_folder_are_refused(pendulum):
+    with pytest.raises(ToolError, match="outside the folder"):
+        pendulum("check", entry="../elsewhere/workflow.rkt")

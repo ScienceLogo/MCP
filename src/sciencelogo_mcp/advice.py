@@ -51,6 +51,8 @@ def readability(workspace: Workspace, entry: Path) -> list[str]:
     }
     for file in sorted(files):
         path = Path(file)
+        if not path.is_file():
+            continue  # an imported library's file, in its Git repository
         lines = read_text(path).count("\n") + 1
         if lines > LONG_FILE_LINES:
             notes.append(

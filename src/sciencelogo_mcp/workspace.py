@@ -190,13 +190,26 @@ class Workspace:
 
     def __init__(self, helper: RacketHelper, root: Path | None = None) -> None:
         self.helper = helper
-        self.root = (root or Path.cwd()).resolve()
+        self.default_roots = [(root or Path.cwd()).resolve()]
+        self.roots = list(self.default_roots)
         self._lock = threading.Lock()
+
+    @property
+    def root(self) -> Path:
+        return self.roots[0]
+
+    def resolve(self, file: str) -> Path:
+        """A path given by the agent: relative to the working folder, and always
+        inside the folders the agent works in."""
+        path = (self.root / file).resolve()
+        if not any(path.is_relative_to(r) for r in self.roots):
+            raise WriteError(f"{file} is outside the folder the agent works in")
+        return path
 
     # --- paths -----------------------------------------------------------------
 
     def entry_path(self, entry: str) -> Path:
-        path = (self.root / entry).resolve()
+        path = self.resolve(entry)
         if not path.is_file():
             raise WriteError(f"{entry} does not exist")
         return path
@@ -244,6 +257,8 @@ class Workspace:
             if raw["file"] in (None, "null") or raw["start"] in (None, "null"):
                 continue
             file = Path(raw["file"])
+            if file not in texts and not file.is_file():
+                continue  # an item from an imported library, read from its Git repository
             if file not in texts:
                 texts[file] = read_text(file)
                 previous_end[file] = preamble_end(texts[file])
@@ -503,12 +518,29 @@ class Workspace:
     def create_library(self, file: str, name: str, language: str) -> dict[str, Any]:
         from sciencelogo_mcp import syntax
 
-        path = (self.root / file).resolve()
+        path = self.resolve(file)
         if path.exists():
             raise WriteError(f"{file} already exists")
-        if not path.is_relative_to(self.root):
-            raise WriteError(f"{file} is outside {self.root}")
         return self.commit(path, {path: syntax.library_file(name, language)})
+
+    def convert(self, entry: Path, to: str, file: str | None) -> dict[str, Any]:
+        """Rewrite one file, or every file of the workflow, in verbose or compact
+        syntax with the reference translator; comments are kept."""
+        status = self.check(entry)
+        if status["status"] != "valid":
+            return {"saved": False, **status}
+        if file:
+            files = [self.target_path(entry, file)]
+        else:
+            files = [entry] + [
+                Path(i.name)
+                for i in self.items(entry)
+                if i.kind == "include" and i.name and Path(i.name).is_file()
+            ]
+        changes: dict[Path, str | None] = {
+            f: self.helper.request("translate", file=str(f), to=to)["text"] for f in files
+        }
+        return self.commit(entry, changes)
 
     def stage_file(self, entry: Path, name: str) -> str:
         """The default file for a new stage: stages/NN-name.rkt."""
