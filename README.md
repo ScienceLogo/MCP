@@ -116,6 +116,11 @@ image's Racket and ScienceLogo. Set `CONTAINER=podman` to use Podman.
 Pushing a tag `vX.Y.Z` builds the image, pushes it to the GitHub Container
 Registry and publishes `server.json` to the MCP Registry.
 
-## Licence
+## Licence and citation
 
 MIT, copyright 2026 Riccardo Boero. See [LICENSE](LICENSE).
+
+If you use the ScienceLogo MCP server in published work, please cite it as:
+
+> Boero, R. (2026). *ScienceLogo MCP Server* [Software]. Zenodo.
+> https://doi.org/10.5281/zenodo.24085876
