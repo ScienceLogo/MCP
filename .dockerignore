@@ -1,0 +1,11 @@
+.git
+.github
+.venv
+.venv-*
+build
+dist
+__pycache__
+*.pyc
+*.egg-info
+docs
+compiled

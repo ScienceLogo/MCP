@@ -1,0 +1,20 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.ScienceLogo/sciencelogo-mcp",
+  "title": "ScienceLogo",
+  "description": "Write and validate ScienceLogo workflows from any AI agent.",
+  "repository": {
+    "url": "https://github.com/ScienceLogo/MCP",
+    "source": "github"
+  },
+  "version": "0.2.0",
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/sciencelogo/sciencelogo-mcp:0.2.0",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

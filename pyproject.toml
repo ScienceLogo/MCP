@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sciencelogo-mcp"
+dynamic = ["version"]
+description = "Write and validate ScienceLogo workflows from any AI agent, via MCP."
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "Riccardo Boero" }]
+dependencies = ["mcp>=2.3,<3"]
+
+[project.scripts]
+sciencelogo-mcp = "sciencelogo_mcp.server:main"
+
+[dependency-groups]
+dev = ["pytest>=9.2", "ruff>=0.17"]
+
+[project.urls]
+Repository = "https://github.com/ScienceLogo/MCP"
+
+[tool.setuptools.dynamic]
+version = { attr = "sciencelogo_mcp.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+sciencelogo_mcp = ["racket/*.rkt"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
